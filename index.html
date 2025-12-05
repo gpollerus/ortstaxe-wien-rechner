@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wiener Ortstaxe Rechner 2026/27 (Standalone)</title>
+    <!-- Tailwind CSS CDN (Styling) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons CDN (Icons) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Entfernt die kleinen Pfeile bei Nummer-Inputs für saubereres Design */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app" class="min-h-screen bg-slate-50 text-slate-800 font-sans p-4 md:p-8">
+    <div class="max-w-5xl mx-auto">
+        
+        <!-- Header -->
+        <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="calculator" class="w-6 h-6 text-blue-600"></i>
+                    Wiener Ortstaxe Rechner
+                </h1>
+                <p class="text-slate-500 mt-1">
+                    Simulation Erhöhung 2026 (5%) & 2027 (8%)
+                </p>
+            </div>
+            
+            <div class="flex items-center gap-3 bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm">
+                <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                <input 
+                    type="date" 
+                    id="dateInput"
+                    class="bg-transparent border-none focus:ring-0 text-sm font-medium text-slate-700 cursor-pointer"
+                />
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Controls Column -->
+            <div class="lg:col-span-1 space-y-6">
+                
+                <!-- Main Inputs -->
+                <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-5 space-y-5">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                            <i data-lucide="settings" class="w-4 h-4"></i> Einstellungen
+                        </h3>
+                        <span id="nominalRateDisplay" class="text-xs px-2 py-1 rounded font-bold bg-amber-100 text-amber-700">
+                            Satz: 0.00%
+                        </span>
+                    </div>
+
+                    <!-- Mode Switch -->
+                    <div class="bg-slate-100 p-1 rounded-lg flex text-sm">
+                        <button
+                            id="modeInclusive"
+                            class="flex-1 py-1.5 px-3 rounded-md transition-all bg-white shadow text-blue-700 font-medium"
+                        >
+                            Inkl. Taxe
+                        </button>
+                        <button
+                            id="modeExclusive"
+                            class="flex-1 py-1.5 px-3 rounded-md transition-all text-slate-500 hover:text-slate-700"
+                        >
+                            Exkl. Taxe
+                        </button>
+                    </div>
+                    <p id="modeHelpText" class="text-xs text-slate-500 mt-[-10px]">
+                        Gast zahlt Fixpreis (Steuer wird herausgerechnet).
+                    </p>
+
+                    <!-- Price Input -->
+                    <div>
+                        <label id="priceLabel" class="block text-sm font-medium text-slate-700 mb-1">
+                            Brutto-Endpreis (pro Nacht)
+                        </label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i data-lucide="euro" class="h-4 w-4 text-slate-400"></i>
+                            </div>
+                            <input
+                                type="number"
+                                id="grossPriceInput"
+                                class="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Breakfast Settings -->
+                    <div class="pt-2 border-t border-slate-100">
+                        <div class="flex items-center justify-between py-2">
+                            <div class="flex flex-col">
+                                <span class="text-sm font-medium text-slate-700">Inklusive Frühstück?</span>
+                            </div>
+                            <button
+                                id="hasBreakfastToggle"
+                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 shrink-0 ml-2 bg-blue-600"
+                            >
+                                <span
+                                    id="hasBreakfastToggleSpan"
+                                    class="translate-x-6 inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                ></span>
+                            </button>
+                        </div>
+                        
+                        <div id="breakfastPriceContainer" class="mt-3">
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">
+                                Frühstückspreis (Brutto)
+                            </label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i data-lucide="euro" class="h-4 w-4 text-slate-400"></i>
+                                </div>
+                                <input
+                                    type="number"
+                                    id="breakfastPriceInput"
+                                    class="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-slate-50"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 11% Deduction Setting -->
+                    <div class="pt-2 border-t border-slate-100">
+                        <div class="flex items-center justify-between py-2">
+                            <div class="flex flex-col">
+                                <span class="text-sm font-medium text-slate-700">11% Pauschalabzug</span>
+                                <span class="text-xs text-slate-400">(Bedienung & Energie)</span>
+                            </div>
+                            <button
+                                id="deductionToggle"
+                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 shrink-0 ml-2 bg-blue-600"
+                            >
+                                <span
+                                    id="deductionToggleSpan"
+                                    class="translate-x-6 inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                ></span>
+                            </button>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">
+                            Reduziert die Bemessungsgrundlage (Standard in Wien).
+                        </p>
+                    </div>
+
+                </div>
+
+                <!-- Quantity Inputs -->
+                <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-5 grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 uppercase">Nächte</label>
+                        <input
+                            type="number"
+                            id="nightsInput"
+                            min="1"
+                            class="mt-1 block w-full py-2 px-3 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 uppercase">Zimmer</label>
+                        <input
+                            type="number"
+                            id="roomsInput"
+                            min="1"
+                            class="mt-1 block w-full py-2 px-3 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        />
+                    </div>
+                </div>
+                
+                <!-- Advanced Settings -->
+                <div class="bg-slate-100 rounded-lg p-4 text-sm">
+                    <button 
+                        id="customRateToggle"
+                        class="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-medium w-full"
+                    >
+                        <i data-lucide="settings" class="w-3 h-3"></i>
+                        Manuellen Steuersatz erzwingen
+                    </button>
+                    
+                    <div id="customRateContainer" class="mt-3 hidden">
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Eigener Steuersatz (%)</label>
+                        <input
+                            type="number"
+                            step="0.1"
+                            id="customTaxRateInput"
+                            class="block w-full py-1.5 px-3 border border-slate-300 rounded-md text-sm"
+                        />
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Results Column -->
+            <div class="lg:col-span-2 space-y-6">
+                
+                <!-- Top Level KPIs -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-5 border-l-4 border-l-blue-500 flex flex-col justify-between">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Ortstaxe (Total)</span>
+                        <div id="taxTotalDisplay" class="mt-2 text-3xl font-bold text-slate-900">
+                            € 0.00
+                        </div>
+                        <div id="taxPerNightDisplay" class="text-xs text-slate-500 mt-1">
+                            € 0.00 pro Nacht
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-5 border-l-4 border-l-emerald-500 flex flex-col justify-between">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Dein Netto Logis</span>
+                        <div id="netLogisTotalDisplay" class="mt-2 text-3xl font-bold text-slate-900">
+                            € 0.00
+                        </div>
+                        <div class="text-xs text-slate-500 mt-1">
+                            Realer Umsatz (exkl. Frühstück)
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-5 border-l-4 border-l-slate-400 flex flex-col justify-between bg-slate-50">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Rechnungsbetrag</span>
+                        <div id="grandTotalDisplay" class="mt-2 text-3xl font-bold text-slate-800">
+                            € 0.00
+                        </div>
+                        <div class="text-xs text-slate-500 mt-1">
+                            Vom Gast zu zahlen
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Breakdown -->
+                <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-slate-50 px-6 py-4 border-b border-slate-200">
+                        <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                            <i data-lucide="file-text" class="w-4 h-4 text-slate-500"></i>
+                            Kalkulations-Details
+                        </h3>
+                    </div>
+                    <div class="p-6">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="text-slate-500 border-b border-slate-200">
+                                    <th class="text-left py-2 font-medium">Position</th>
+                                    <th class="text-right py-2 font-medium">Faktor</th>
+                                    <th class="text-right py-2 font-medium">Basis</th>
+                                    <th class="text-right py-2 font-medium">Betrag</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr>
+                                    <td class="py-3 text-slate-800 font-medium">Netto Logis (Reiner Umsatz)</td>
+                                    <td class="text-right text-slate-500">-</td>
+                                    <td class="text-right text-xs text-slate-400 italic"></td>
+                                    <td id="netLogisBreakdown" class="text-right font-mono font-medium text-slate-900">€ 0.00</td>
+                                </tr>
+                                
+                                <tr id="deductionRow" class="text-slate-500 italic bg-slate-50/50">
+                                    <td class="py-2 pl-4 text-xs">./. 11% Pauschalabzug</td>
+                                    <td class="text-right text-xs">-11%</td>
+                                    <td class="text-right text-xs">von Netto Logis</td>
+                                    <td id="deductionAmount" class="text-right text-xs font-mono">- € 0.00</td>
+                                </tr>
+
+                                <tr>
+                                    <td class="py-3 text-slate-600">Netto Frühstück</td>
+                                    <td class="text-right text-slate-500">-</td>
+                                    <td class="text-right text-xs text-slate-400 italic">steuerfrei (Ortstaxe)</td>
+                                    <td id="breakfastNetBreakdown" class="text-right font-mono text-slate-600">€ 0.00</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-3 text-slate-600">Umsatzsteuer (10%)</td>
+                                    <td class="text-right text-slate-500">10%</td>
+                                    <td class="text-right text-xs text-slate-400 italic">auf Logis & Frühstück</td>
+                                    <td id="vatBreakdown" class="text-right font-mono text-slate-600">€ 0.00</td>
+                                </tr>
+                                <tr id="taxRow" class="bg-blue-50/50">
+                                    <td class="py-3 text-blue-800 font-medium">Ortstaxe</td>
+                                    <td id="taxRateBreakdown" class="text-right text-blue-700 font-bold">0.00%</td>
+                                    <td id="taxBaseBreakdown" class="text-right text-xs text-blue-400 italic"></td>
+                                    <td id="taxAmountBreakdown" class="text-right font-mono font-bold text-blue-700">€ 0.00</td>
+                                </tr>
+                                <tr class="border-t-2 border-slate-200">
+                                    <td class="py-4 text-lg font-bold text-slate-900">Gesamtbetrag</td>
+                                    <td class="text-right"></td>
+                                    <td class="text-right"></td>
+                                    <td id="grandTotalBreakdown" class="text-right text-lg font-bold font-mono text-slate-900">€ 0.00</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ALERTS AREA -->
+                <div class="space-y-4">
+                    
+                    <!-- Margin Warning (Amber) -->
+                    <div id="impactAlertContainer" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3 items-start">
+                        <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5"></i>
+                        <div>
+                            <h4 class="font-semibold text-amber-800 text-sm">Margen-Warnung (Budget 2026/27)</h4>
+                            <p id="impactAlertText" class="text-sm text-amber-700 mt-1"></p>
+                        </div>
+                    </div>
+
+                    <!-- Recommendation (Blue) -->
+                    <div id="recommendationAlertContainer" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3 items-start">
+                        <i data-lucide="trending-up" class="w-5 h-5 text-blue-600 shrink-0 mt-0.5"></i>
+                        <div>
+                            <h4 class="font-semibold text-blue-800 text-sm">Empfohlene Preisanpassung</h4>
+                            <p id="recommendationAlertText" class="text-sm text-blue-700 mt-1"></p>
+                        </div>
+                    </div>
+
+                </div>
+                
+                 <div class="text-xs text-slate-400 text-center pt-4">
+                    *Alle Angaben ohne Gewähr. Berechnet auf Basis des Wiener Tourismusförderungsgesetzes (Stand Entwurf 2025). 
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Use an IIFE (Immediately Invoked Function Expression) to avoid global namespace pollution
+// This fixes the "Identifier 'D' has already been declared" error if the script runs multiple times
+(function() {
+
+    // --------------------------------------------------------------------------
+    // 1. STATE MANAGEMENT (Centralized State)
+    // --------------------------------------------------------------------------
+    const STATE = {
+        calculationMode: 'inclusive', // 'inclusive' or 'exclusive'
+        date: '2026-07-01',
+        grossPrice: 150,
+        breakfastPrice: 19, // Updated default to 19
+        hasBreakfast: true,
+        applyDeduction11: true,
+        customRateActive: false,
+        customTaxRate: 5.0,
+        nights: 1,
+        rooms: 1
+    };
+
+    const VAT_LOGIS = 0.10;
+    const VAT_BREAKFAST = 0.10;
+
+    // --------------------------------------------------------------------------
+    // 2. DOM ELEMENTS
+    // --------------------------------------------------------------------------
+    const D = {
+        // Inputs
+        dateInput: document.getElementById('dateInput'),
+        grossPriceInput: document.getElementById('grossPriceInput'),
+        breakfastPriceInput: document.getElementById('breakfastPriceInput'),
+        nightsInput: document.getElementById('nightsInput'),
+        roomsInput: document.getElementById('roomsInput'),
+        customTaxRateInput: document.getElementById('customTaxRateInput'),
+        
+        // Buttons / Toggles
+        modeInclusive: document.getElementById('modeInclusive'),
+        modeExclusive: document.getElementById('modeExclusive'),
+        hasBreakfastToggle: document.getElementById('hasBreakfastToggle'),
+        hasBreakfastToggleSpan: document.getElementById('hasBreakfastToggleSpan'),
+        deductionToggle: document.getElementById('deductionToggle'),
+        deductionToggleSpan: document.getElementById('deductionToggleSpan'),
+        customRateToggle: document.getElementById('customRateToggle'),
+        customRateContainer: document.getElementById('customRateContainer'),
+        breakfastPriceContainer: document.getElementById('breakfastPriceContainer'),
+
+        // Display Labels
+        nominalRateDisplay: document.getElementById('nominalRateDisplay'),
+        modeHelpText: document.getElementById('modeHelpText'),
+        priceLabel: document.getElementById('priceLabel'),
+        
+        // KPIs
+        taxTotalDisplay: document.getElementById('taxTotalDisplay'),
+        taxPerNightDisplay: document.getElementById('taxPerNightDisplay'),
+        netLogisTotalDisplay: document.getElementById('netLogisTotalDisplay'),
+        grandTotalDisplay: document.getElementById('grandTotalDisplay'),
+
+        // Breakdown Table
+        netLogisBreakdown: document.getElementById('netLogisBreakdown'),
+        deductionRow: document.getElementById('deductionRow'),
+        deductionAmount: document.getElementById('deductionAmount'),
+        breakfastNetBreakdown: document.getElementById('breakfastNetBreakdown'),
+        vatBreakdown: document.getElementById('vatBreakdown'),
+        taxRow: document.getElementById('taxRow'),
+        taxRateBreakdown: document.getElementById('taxRateBreakdown'),
+        taxBaseBreakdown: document.getElementById('taxBaseBreakdown'),
+        taxAmountBreakdown: document.getElementById('taxAmountBreakdown'),
+        grandTotalBreakdown: document.getElementById('grandTotalBreakdown'),
+        
+        // Alerts
+        impactAlertContainer: document.getElementById('impactAlertContainer'),
+        impactAlertText: document.getElementById('impactAlertText'),
+        recommendationAlertContainer: document.getElementById('recommendationAlertContainer'),
+        recommendationAlertText: document.getElementById('recommendationAlertText'),
+    };
+
+    // --------------------------------------------------------------------------
+    // 3. LOGIC & CALCULATION
+    // --------------------------------------------------------------------------
+    function getNominalTaxRate() {
+        if (STATE.customRateActive) return STATE.customTaxRate / 100;
+        
+        const selectedDate = new Date(STATE.date);
+        const hikeDate = new Date('2026-07-01');
+        const hikeDate2027 = new Date('2027-07-01');
+
+        if (selectedDate >= hikeDate2027) return 0.08; // 8% logic
+        if (selectedDate >= hikeDate) return 0.05;     // 5% logic
+        return 0.032; // 3.2% default
+    }
+
+    function calculateResults() {
+        const nominalTaxRate = getNominalTaxRate();
+        const count = STATE.nights * STATE.rooms;
+        const grossBreakfastTotal = STATE.hasBreakfast ? STATE.breakfastPrice : 0;
+        const netBreakfastSingle = grossBreakfastTotal / (1 + VAT_BREAKFAST);
+        
+        const deductionFactor = STATE.applyDeduction11 ? 0.89 : 1.0;
+        const effectiveTaxOnNetLogis = nominalTaxRate * deductionFactor;
+
+        let result = {
+            taxAmount: 0,
+            netLogis: 0,
+            baseAmount: 0,
+            vatLogis: 0,
+            netBreakfast: netBreakfastSingle,
+            vatBreakfast: netBreakfastSingle * VAT_BREAKFAST,
+            totalGuestPays: 0,
+            recommendedPrice: 0 // New field
+        };
+
+        if (STATE.calculationMode === 'inclusive') {
+            const totalPerNight = STATE.grossPrice;
+            const netLogis = (totalPerNight - grossBreakfastTotal) / (1 + VAT_LOGIS + effectiveTaxOnNetLogis);
+            
+            result.netLogis = netLogis;
+            result.baseAmount = netLogis * deductionFactor;
+            result.taxAmount = result.baseAmount * nominalTaxRate;
+            result.vatLogis = netLogis * VAT_LOGIS;
+            result.totalGuestPays = totalPerNight;
+
+            // --- Recommendation Engine ---
+            // Goal: Find GrossPrice needed to get the SAME NetLogis as if tax was 3.2%
+            const baseTaxRate = 0.032;
+            const baseEffectiveTax = baseTaxRate * deductionFactor;
+            // 1. Calculate what NetLogis would be at 3.2% with current price
+            const targetNetLogis = (totalPerNight - grossBreakfastTotal) / (1 + VAT_LOGIS + baseEffectiveTax);
+            // 2. Calculate new GrossPrice required to hit that TargetNetLogis with NEW tax rate
+            result.recommendedPrice = (targetNetLogis * (1 + VAT_LOGIS + effectiveTaxOnNetLogis)) + grossBreakfastTotal;
+
+        } else {
+            // Exclusive Mode
+            const ratePerNight = STATE.grossPrice; 
+            const netLogis = (ratePerNight - grossBreakfastTotal) / (1 + VAT_LOGIS);
+
+            result.netLogis = netLogis;
+            result.baseAmount = netLogis * deductionFactor;
+            result.taxAmount = result.baseAmount * nominalTaxRate;
+            result.vatLogis = netLogis * VAT_LOGIS;
+            result.totalGuestPays = ratePerNight + result.taxAmount;
+            
+            result.recommendedPrice = 0; // Not needed in exclusive mode
+        }
+
+        return {
+            perNight: {
+                tax: result.taxAmount,
+                netLogis: result.netLogis,
+                total: result.totalGuestPays
+            },
+            total: {
+                tax: result.taxAmount * count,
+                netLogis: result.netLogis * count,
+                vat: (result.vatLogis + result.vatBreakfast) * count,
+                breakfastNet: result.netBreakfast * count,
+                grandTotal: result.totalGuestPays * count
+            },
+            nominalRatePercent: (nominalTaxRate * 100).toFixed(2),
+            isDeducted: STATE.applyDeduction11,
+            grossPricePerNight: STATE.grossPrice,
+            nightsRoomsCount: count,
+            recommendation: result.recommendedPrice
+        };
+    }
+
+    function formatEuro(amount) {
+        return `€ ${amount.toFixed(2)}`;
+    }
+
+    // --------------------------------------------------------------------------
+    // 4. UI UPDATE
+    // --------------------------------------------------------------------------
+    function updateUI() {
+        const results = calculateResults();
+        
+        // Mode & Toggles
+        D.modeInclusive.className = `flex-1 py-1.5 px-3 rounded-md transition-all ${STATE.calculationMode === 'inclusive' ? 'bg-white shadow text-blue-700 font-medium' : 'text-slate-500 hover:text-slate-700'}`;
+        D.modeExclusive.className = `flex-1 py-1.5 px-3 rounded-md transition-all ${STATE.calculationMode === 'exclusive' ? 'bg-white shadow text-blue-700 font-medium' : 'text-slate-500 hover:text-slate-700'}`;
+        
+        D.modeHelpText.textContent = STATE.calculationMode === 'inclusive' 
+            ? "Gast zahlt Fixpreis (Steuer wird herausgerechnet)." 
+            : "Gast zahlt Preis + Steuer (Steuer kommt on top).";
+        
+        D.priceLabel.textContent = STATE.calculationMode === 'inclusive' 
+            ? 'Brutto-Endpreis (pro Nacht)' 
+            : 'Zimmerrate (Brutto, exkl. Tax)';
+
+        D.breakfastPriceContainer.style.display = STATE.hasBreakfast ? 'block' : 'none';
+
+        // Toggle Styling
+        const setToggle = (btn, span, active) => {
+            btn.classList.toggle('bg-blue-600', active);
+            btn.classList.toggle('bg-slate-200', !active);
+            span.classList.toggle('translate-x-6', active);
+            span.classList.toggle('translate-x-1', !active);
+        };
+        setToggle(D.hasBreakfastToggle, D.hasBreakfastToggleSpan, STATE.hasBreakfast);
+        setToggle(D.deductionToggle, D.deductionToggleSpan, STATE.applyDeduction11);
+        
+        D.customRateToggle.innerHTML = `<i data-lucide="settings" class="w-3 h-3"></i> ${STATE.customRateActive ? 'Automatische Rate verwenden' : 'Manuellen Steuersatz erzwingen'}`;
+        D.customRateContainer.classList.toggle('hidden', !STATE.customRateActive);
+
+        // KPI Updates
+        D.nominalRateDisplay.textContent = `Satz: ${results.nominalRatePercent}%`;
+        D.nominalRateDisplay.className = `text-xs px-2 py-1 rounded font-bold ${parseFloat(results.nominalRatePercent) > 3.2 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`;
+
+        D.taxTotalDisplay.textContent = formatEuro(results.total.tax);
+        D.taxPerNightDisplay.textContent = `${formatEuro(results.perNight.tax)} pro Nacht`;
+        D.netLogisTotalDisplay.textContent = formatEuro(results.total.netLogis);
+        D.grandTotalDisplay.textContent = formatEuro(results.total.grandTotal);
+
+        // Table Updates
+        D.netLogisBreakdown.textContent = formatEuro(results.total.netLogis);
+        D.breakfastNetBreakdown.textContent = formatEuro(results.total.breakfastNet);
+        D.vatBreakdown.textContent = formatEuro(results.total.vat);
+        D.taxAmountBreakdown.textContent = formatEuro(results.total.tax);
+        D.grandTotalBreakdown.textContent = formatEuro(results.total.grandTotal);
+        D.taxRateBreakdown.textContent = `${results.nominalRatePercent}%`;
+
+        D.deductionRow.classList.toggle('hidden', !results.isDeducted);
+        if (results.isDeducted) {
+            D.deductionAmount.textContent = `- ${formatEuro(results.total.netLogis * 0.11)}`; 
+            D.taxBaseBreakdown.textContent = 'von 89% d. Netto Logis';
+        } else {
+            D.taxBaseBreakdown.textContent = 'von Netto Logis';
+        }
+
+        // --- Alerts Logic ---
+        D.impactAlertContainer.classList.add('hidden');
+        D.recommendationAlertContainer.classList.add('hidden');
+
+        if (parseFloat(results.nominalRatePercent) > 3.2 && STATE.calculationMode === 'inclusive') {
+             
+             // 1. Calculate Loss
+             const nominalRateVal = parseFloat(results.nominalRatePercent)/100;
+             const baseTaxRate = 0.032;
+             const deductionFactor = STATE.applyDeduction11 ? 0.89 : 1.0;
+             // Calculate loss per night based on net logis difference
+             const marginLoss = results.total.netLogis * ( (nominalRateVal * deductionFactor) - (baseTaxRate * deductionFactor) );
+             // NOTE: The React code used a simplified formula which I'm replicating here for consistency:
+             // React: results.total.netLogis * ( (nominalRate * deduction) - (0.032 * deduction) )
+             // This is technically an approximation of loss relative to the current net base, but effective for the UI.
+             
+             D.impactAlertText.innerHTML = `
+                Bei gleichbleibendem Preis von <strong>${formatEuro(STATE.grossPrice)}</strong> verlierst du durch die Erhöhung (3,2% → ${results.nominalRatePercent}%) ca. 
+                <strong>${formatEuro(marginLoss)}</strong> Marge pro Nacht.
+            `;
+            D.impactAlertContainer.classList.remove('hidden');
+
+            // 2. Show Recommendation
+            const priceDiff = results.recommendation - STATE.grossPrice;
+            D.recommendationAlertText.innerHTML = `
+               Um den exakt gleichen Netto-Logis-Umsatz wie bei 3,2% zu behalten, müsstest du den Preis auf ca. 
+               <strong>${formatEuro(results.recommendation)}</strong> anheben 
+               (+ ${formatEuro(priceDiff)}).
+            `;
+            D.recommendationAlertContainer.classList.remove('hidden');
+        }
+
+        lucide.createIcons();
+    }
+
+    // --------------------------------------------------------------------------
+    // 5. EVENT LISTENERS
+    // --------------------------------------------------------------------------
+    
+    // Inputs
+    const attachInput = (el, key, type='float') => {
+        el.addEventListener('input', (e) => {
+            let val = e.target.value;
+            if (type === 'float') val = parseFloat(val) || 0;
+            if (type === 'int') val = parseInt(val) || 0;
+            if (key === 'nights' || key === 'rooms') val = Math.max(1, val);
+            
+            STATE[key] = val;
+            if (key === 'nights' || key === 'rooms') e.target.value = val; 
+            updateUI();
+        });
+    };
+
+    attachInput(D.dateInput, 'date', 'string');
+    attachInput(D.grossPriceInput, 'grossPrice', 'float');
+    attachInput(D.breakfastPriceInput, 'breakfastPrice', 'float');
+    attachInput(D.nightsInput, 'nights', 'int');
+    attachInput(D.roomsInput, 'rooms', 'int');
+    attachInput(D.customTaxRateInput, 'customTaxRate', 'float');
+
+    // Switches & Toggles
+    D.modeInclusive.addEventListener('click', () => { STATE.calculationMode = 'inclusive'; updateUI(); });
+    D.modeExclusive.addEventListener('click', () => { STATE.calculationMode = 'exclusive'; updateUI(); });
+    
+    D.hasBreakfastToggle.addEventListener('click', () => { STATE.hasBreakfast = !STATE.hasBreakfast; updateUI(); });
+    D.deductionToggle.addEventListener('click', () => { STATE.applyDeduction11 = !STATE.applyDeduction11; updateUI(); });
+    D.customRateToggle.addEventListener('click', () => { STATE.customRateActive = !STATE.customRateActive; updateUI(); });
+
+    // Init - No need to wait for DOMContentLoaded if script is at bottom of body, 
+    // but good practice to keep it. Since we are inside IIFE, we attach listener.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            D.dateInput.value = STATE.date;
+            D.grossPriceInput.value = STATE.grossPrice;
+            D.breakfastPriceInput.value = STATE.breakfastPrice;
+            D.nightsInput.value = STATE.nights;
+            D.roomsInput.value = STATE.rooms;
+            D.customTaxRateInput.value = STATE.customTaxRate;
+            updateUI();
+        });
+    } else {
+        // DOM already ready
+        D.dateInput.value = STATE.date;
+        D.grossPriceInput.value = STATE.grossPrice;
+        D.breakfastPriceInput.value = STATE.breakfastPrice;
+        D.nightsInput.value = STATE.nights;
+        D.roomsInput.value = STATE.rooms;
+        D.customTaxRateInput.value = STATE.customTaxRate;
+        updateUI();
+    }
+
+})(); // End of IIFE
+</script>
+</body>
+</html>

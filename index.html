@@ -18,6 +18,9 @@
         .rotate-180 { transform: rotate(180deg); }
         details > summary { list-style: none; }
         details > summary::-webkit-details-marker { display: none; }
+        
+        /* Tooltip style for Diff header */
+        .tooltip-trigger { position: relative; cursor: help; border-bottom: 1px dotted #94a3b8; }
     </style>
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-800 font-sans p-3 md:p-8">
@@ -105,7 +108,7 @@
                                     </div>
                                     <input type="number" id="input-breakfast-price" min="0" class="block w-full pl-10 pr-3 py-1.5 border border-slate-300 rounded-md text-sm" placeholder="Preis">
                                 </div>
-                                <p class="text-xs text-slate-400 mt-1">Brutto-Wert (wird nicht besteuert)</p>
+                                <p class="text-xs text-slate-400 mt-1">Brutto-Wert (nicht ortstaxepflichtig)</p>
                                 <p id="breakfast-warning" class="text-xs text-red-500 mt-1 font-medium hidden">Achtung: Frühstück > Rate!</p>
                             </div>
                         </div>
@@ -149,7 +152,7 @@
                                         <button class="preset-rate-btn px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-xs text-slate-600 font-medium transition-colors" data-rate="5.0">5.0%</button>
                                         <button class="preset-rate-btn px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-xs text-slate-600 font-medium transition-colors" data-rate="8.0">8.0%</button>
                                     </div>
-                                    <input type="number" id="input-custom-rate" step="0.1" class="block w-full border border-slate-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500">
+                                    <input type="number" id="input-custom-rate" min="0" max="100" step="0.1" class="block w-full border border-slate-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500">
                                 </div>
                             </div>
                         </details>
@@ -177,7 +180,9 @@
                                     <th class="py-3 px-4 font-medium">Satz</th>
                                     <th class="py-3 px-4 font-medium text-slate-800">Taxe</th>
                                     <th class="py-3 px-4 font-medium text-emerald-700">Netto Logis</th>
-                                    <th id="th-diff" class="py-3 px-4 font-medium text-slate-400">Diff.</th>
+                                    <th id="th-diff" class="py-3 px-4 font-medium text-slate-400" title="Verlust Netto-Logis vs. Status Quo (Fixpreis)">
+                                        <span class="tooltip-trigger">Diff.</span>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody id="comparison-table-body" class="divide-y divide-slate-100">
@@ -237,7 +242,7 @@
         // --- State Management ---
         const STATE = {
             calculationMode: 'inclusive', // 'inclusive' | 'exclusive'
-            activeScenarioId: '2026',
+            activeScenarioId: 'current', // Start with Status Quo
             grossPrice: 150,
             breakfastPrice: 19,
             hasBreakfast: true,
@@ -406,7 +411,11 @@
 
             // 4. Render Recommendation
             const recommendation = calculateRecommendation(resultsCurrent, activeResult, currentRate);
-            const marginLoss = resultsCurrent.totals.netLogis - activeResult.totals.netLogis;
+            
+            // Bug Fix: Separate total vs. per night
+            const count = STATE.rooms * STATE.nights;
+            const marginLossTotal = resultsCurrent.totals.netLogis - activeResult.totals.netLogis;
+            const marginLossPerNight = count > 0 ? marginLossTotal / count : 0;
 
             if (recommendation && STATE.activeScenarioId !== 'current') {
                 const colors = {
@@ -425,7 +434,9 @@
                                 Marge halten
                             </h4>
                             <p class="text-sm mt-1 text-slate-700">
-                                Durch die Erhöhung auf ${currentRate}% verlierst du <strong>${marginLoss.toFixed(2)} €</strong> pro Nacht.
+                                Durch die Erhöhung auf ${currentRate}% verlierst du 
+                                <strong>${marginLossPerNight.toFixed(2)} €</strong> pro Zimmernacht 
+                                (${marginLossTotal.toFixed(2)} € gesamt).
                             </p>
                             <div class="mt-3 flex items-center gap-2 text-sm">
                                 <span>Erhöhe Brutto auf:</span>
@@ -453,13 +464,24 @@
             // 5. Render Details
             els.detailsTitle.textContent = `Detail-Kalkulation (${STATE.activeScenarioId === 'custom' ? 'Manuell' : SCENARIOS[STATE.activeScenarioId].label})`;
             
+            // Logic Fix: Conditional divisor text
+            const divisorText = STATE.calculationMode === 'inclusive'
+                ? `1.10 + ${(currentRate/100 * (STATE.applyDeduction11 ? 0.89 : 1.0)).toFixed(4)}`
+                : `1.10`;
+
+            const divisorLabel = STATE.calculationMode === 'inclusive'
+                ? 'Divisor (1.10 + Tax)'
+                : 'Divisor (1.10, Tax obendrauf)';
+
+            const startValueLabel = STATE.calculationMode === 'inclusive' ? 'inkl.' : 'exkl.';
+
             if (STATE.detailsOpen) {
                 els.detailsContent.innerHTML = `
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm">
                      <div class="space-y-2">
                         <h4 class="font-medium text-slate-900 mb-2 border-b pb-1">Rechenweg (pro Nacht)</h4>
                         <div class="flex justify-between">
-                            <span class="text-slate-600">Startwert (${STATE.calculationMode})</span>
+                            <span class="text-slate-600">Startwert (${startValueLabel})</span>
                             <span class="font-mono">€ ${STATE.grossPrice.toFixed(2)}</span>
                         </div>
                         ${STATE.hasBreakfast ? `
@@ -472,8 +494,8 @@
                             <span class="font-mono">€ ${(STATE.grossPrice - activeResult.grossBreakfastTotal).toFixed(2)}</span>
                         </div>
                         <div class="flex justify-between text-slate-500 italic text-xs pt-1">
-                            <span>Divisor (1.10 + Tax)</span>
-                            <span>1.10 + ${(currentRate/100 * (STATE.applyDeduction11 ? 0.89 : 1.0)).toFixed(4)}</span>
+                            <span>${divisorLabel}</span>
+                            <span>${divisorText}</span>
                         </div>
                         <div class="flex justify-between font-bold text-emerald-700 border-t border-slate-200 pt-1 mt-1">
                             <span>= Netto Logis (Dein Umsatz)</span>
@@ -496,7 +518,7 @@
                             <span class="font-mono text-blue-800 font-bold">€ ${activeResult.totals.tax.toFixed(2)}</span>
                         </div>
                         <div class="flex justify-between font-bold text-lg border-t border-slate-300 pt-2 mt-2">
-                            <span>Rechnungsgessamt</span>
+                            <span>Rechnungssumme</span>
                             <span class="font-mono">€ ${activeResult.totals.grandTotal.toFixed(2)}</span>
                         </div>
                      </div>
@@ -623,8 +645,11 @@
             });
 
             els.inputCustomRate.value = STATE.customTaxRate;
-            els.inputCustomRate.addEventListener('input', (e) => { 
-                STATE.customTaxRate = parseFloat(e.target.value) || 0; 
+            els.inputCustomRate.addEventListener('input', (e) => {
+                // Robustness: limit range 0-100
+                let val = parseFloat(e.target.value) || 0;
+                val = Math.max(0, Math.min(100, val));
+                STATE.customTaxRate = val; 
                 updateUI(); 
             });
 

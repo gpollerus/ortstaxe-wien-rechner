@@ -138,7 +138,7 @@
                                 <div class="flex items-center justify-between py-2 cursor-pointer" id="toggle-deduction-container">
                                     <div class="flex flex-col">
                                         <span class="text-sm font-medium text-slate-700">11% Pauschalabzug</span>
-                                        <span class="text-xs text-slate-400">Bedienungsgeld/Energie</span>
+                                        <span id="deduction-note" class="text-xs text-slate-400">Bedienungsgeld/Energie (bis 30.06.2026)</span>
                                     </div>
                                     <button id="btn-toggle-deduction" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 shrink-0 ml-2 bg-blue-600">
                                         <span class="translate-x-6 inline-block h-4 w-4 transform rounded-full bg-white transition-transform"></span>
@@ -218,9 +218,7 @@
                 </div>
 
                 <div class="text-[10px] text-slate-400 text-center leading-tight mx-auto max-w-md">
-                    Berechnungsgrundlage: Wiener Tourismusförderungsgesetz (Entwurf). 
-                    Systematik: Netto-Logis abzgl. 11% Pauschale (Bedienung/Energie) = Bemessungsgrundlage.
-                    Davon Ortstaxe. Angaben ohne Gewähr.
+                    Berechnungsgrundlage: Wiener Tourismusförderungsgesetz (Entwurf). Systematik: Bemessungsgrundlage = Netto-Logis (bis 30.06.2026 optional abzgl. 11% Pauschale für Bedienungsgeld/Energie). Ab 01.07.2026 kein Pauschalabzug. Davon Ortstaxe. Angaben ohne Gewähr.
                 </div>
 
             </div>
@@ -252,6 +250,19 @@
             customTaxRate: 5.0,
             detailsOpen: false
         };
+        // --- Deduction rules ---
+        // From 01.07.2026 onward, the 11% flat deduction is not allowed.
+        const DEDUCTION_DISALLOWED = new Set(['2026', '2027']);
+
+        function isDeductionAllowedForScenarioId(id) {
+            return !DEDUCTION_DISALLOWED.has(id);
+        }
+
+        function getApplyDeductionForScenarioId(id) {
+            return isDeductionAllowedForScenarioId(id) ? STATE.applyDeduction11 : false;
+        }
+
+
 
         // --- DOM Elements ---
         const els = {
@@ -269,6 +280,7 @@
             inputNights: document.getElementById('input-nights'),
             toggleDeductionContainer: document.getElementById('toggle-deduction-container'),
             btnToggleDeduction: document.getElementById('btn-toggle-deduction'),
+            deductionNote: document.getElementById('deduction-note'),
             wrapperCustomRate: document.getElementById('custom-rate-wrapper'),
             inputCustomRate: document.getElementById('input-custom-rate'),
             presetRateBtns: document.querySelectorAll('.preset-rate-btn'),
@@ -335,13 +347,13 @@
             };
         }
 
-        function calculateRecommendation(resultsCurrent, activeResult, currentRate) {
+        function calculateRecommendation(resultsCurrent, activeResult, currentRate, applyDeductionForActive) {
             if (STATE.calculationMode !== 'inclusive') return null;
             if (STATE.activeScenarioId === 'current' && currentRate === 3.2) return null;
 
             const targetNetLogis = resultsCurrent.netLogis;
             const nominalTaxRate = currentRate / 100;
-            const deductionFactor = STATE.applyDeduction11 ? 0.89 : 1.0;
+            const deductionFactor = applyDeductionForActive ? 0.89 : 1.0;
             const effectiveTax = nominalTaxRate * deductionFactor;
             
             const newGrossPrice = (targetNetLogis * (1 + VAT_LOGIS + effectiveTax)) + activeResult.grossBreakfastTotal;
@@ -378,13 +390,16 @@
                 currentRate = STATE.customTaxRate;
             }
 
-            const resultsCurrent = calculateScenario(3.2, STATE.grossPrice, STATE.breakfastPrice, STATE.hasBreakfast, STATE.applyDeduction11, STATE.calculationMode, STATE.nights, STATE.rooms);
-            const activeResult = calculateScenario(currentRate, STATE.grossPrice, STATE.breakfastPrice, STATE.hasBreakfast, STATE.applyDeduction11, STATE.calculationMode, STATE.nights, STATE.rooms);
+            const applyDeductionCurrent = STATE.applyDeduction11; // Status quo (bis 30.06.2026)
+            const applyDeductionActive = getApplyDeductionForScenarioId(STATE.activeScenarioId);
+
+            const resultsCurrent = calculateScenario(3.2, STATE.grossPrice, STATE.breakfastPrice, STATE.hasBreakfast, applyDeductionCurrent, STATE.calculationMode, STATE.nights, STATE.rooms);
+            const activeResult = calculateScenario(currentRate, STATE.grossPrice, STATE.breakfastPrice, STATE.hasBreakfast, applyDeductionActive, STATE.calculationMode, STATE.nights, STATE.rooms);
 
             // 3. Render Table
             let tableHTML = '';
             scenariosToCalc.forEach(sc => {
-                const res = calculateScenario(sc.rate, STATE.grossPrice, STATE.breakfastPrice, STATE.hasBreakfast, STATE.applyDeduction11, STATE.calculationMode, STATE.nights, STATE.rooms);
+                const res = calculateScenario(sc.rate, STATE.grossPrice, STATE.breakfastPrice, STATE.hasBreakfast, getApplyDeductionForScenarioId(sc.id), STATE.calculationMode, STATE.nights, STATE.rooms);
                 const isActive = STATE.activeScenarioId === sc.id;
                 
                 // Diff Calculation
@@ -410,12 +425,16 @@
             els.thDiff.style.display = STATE.calculationMode === 'inclusive' ? 'table-cell' : 'none';
 
             // 4. Render Recommendation
-            const recommendation = calculateRecommendation(resultsCurrent, activeResult, currentRate);
+            const recommendation = calculateRecommendation(resultsCurrent, activeResult, currentRate, applyDeductionActive);
             
             // Bug Fix: Separate total vs. per night
             const count = STATE.rooms * STATE.nights;
             const marginLossTotal = resultsCurrent.totals.netLogis - activeResult.totals.netLogis;
             const marginLossPerNight = count > 0 ? marginLossTotal / count : 0;
+            const marginVerb = marginLossPerNight >= 0 ? 'verlierst du' : 'gewinnst du';
+            const marginLossPerNightAbs = Math.abs(marginLossPerNight);
+            const marginLossTotalAbs = Math.abs(marginLossTotal);
+
 
             if (recommendation && STATE.activeScenarioId !== 'current') {
                 const colors = {
@@ -434,17 +453,17 @@
                                 Marge halten
                             </h4>
                             <p class="text-sm mt-1 text-slate-700">
-                                Durch die Erhöhung auf ${currentRate}% verlierst du 
-                                <strong>${marginLossPerNight.toFixed(2)} €</strong> pro Zimmernacht 
-                                (${marginLossTotal.toFixed(2)} € gesamt).
+                                Durch die Erhöhung auf ${currentRate}% ${marginVerb} 
+                                <strong>${marginLossPerNightAbs.toFixed(2)} €</strong> pro Zimmernacht 
+                                (${marginLossTotalAbs.toFixed(2)} € gesamt).
                             </p>
                             <div class="mt-3 flex items-center gap-2 text-sm">
-                                <span>Erhöhe Brutto auf:</span>
+                                <span>${recommendation.diff >= 0 ? 'Erhöhe Brutto auf:' : 'Senke Brutto auf:'}</span>
                                 <span class="bg-white px-2 py-0.5 rounded border border-slate-200 font-mono font-bold text-slate-900">
                                     € ${recommendation.newPrice.toFixed(2)}
                                 </span>
                                 <span class="text-xs font-medium px-2 py-0.5 rounded-full ${c.badge} ${c.text}">
-                                    +${recommendation.diff.toFixed(2)} € (${recommendation.percent.toFixed(1)}%)
+                                    ${recommendation.diff >= 0 ? '+' : '−'}${Math.abs(recommendation.diff).toFixed(2)} € (${recommendation.percent >= 0 ? '+' : '−'}${Math.abs(recommendation.percent).toFixed(1)}%)
                                 </span>
                             </div>
                         </div>
@@ -466,7 +485,7 @@
             
             // Logic Fix: Conditional divisor text
             const divisorText = STATE.calculationMode === 'inclusive'
-                ? `1.10 + ${(currentRate/100 * (STATE.applyDeduction11 ? 0.89 : 1.0)).toFixed(4)}`
+                ? `1.10 + ${(currentRate/100 * (applyDeductionActive ? 0.89 : 1.0)).toFixed(4)}`
                 : `1.10`;
 
             const divisorLabel = STATE.calculationMode === 'inclusive'
@@ -566,7 +585,35 @@
 
             // Toggles (Visual)
             setToggleVisual(els.btnToggleBreakfast, STATE.hasBreakfast);
-            setToggleVisual(els.btnToggleDeduction, STATE.applyDeduction11);
+
+            // Deduction toggle: allowed only for scenarios where the 11% flat deduction is permitted.
+            const deductionAllowed = isDeductionAllowedForScenarioId(STATE.activeScenarioId);
+            const deductionActive = getApplyDeductionForScenarioId(STATE.activeScenarioId);
+
+            setToggleVisual(els.btnToggleDeduction, deductionActive);
+            els.btnToggleDeduction.disabled = !deductionAllowed;
+
+            // Visual hint when disabled
+            if (!deductionAllowed) {
+                els.btnToggleDeduction.classList.add('opacity-50', 'cursor-not-allowed');
+                els.toggleDeductionContainer.classList.add('opacity-60', 'cursor-not-allowed');
+            } else {
+                els.btnToggleDeduction.classList.remove('opacity-50', 'cursor-not-allowed');
+                els.toggleDeductionContainer.classList.remove('opacity-60', 'cursor-not-allowed');
+            }
+
+            // Update note
+            if (els.deductionNote) {
+                if (deductionAllowed) {
+                    els.deductionNote.textContent = 'Bedienungsgeld/Energie (bis 30.06.2026)';
+                    els.deductionNote.classList.remove('text-red-500');
+                    els.deductionNote.classList.add('text-slate-400');
+                } else {
+                    els.deductionNote.textContent = 'Ab 01.07.2026: kein Pauschalabzug möglich';
+                    els.deductionNote.classList.remove('text-slate-400');
+                    els.deductionNote.classList.add('text-red-500');
+                }
+            }
 
             // Visibility
             if (STATE.hasBreakfast) {
@@ -670,7 +717,11 @@
                 if(e.target !== els.btnToggleBreakfast && !els.btnToggleBreakfast.contains(e.target)) toggleBreakfastHandler();
             });
 
-            const toggleDeductionHandler = () => { STATE.applyDeduction11 = !STATE.applyDeduction11; updateUI(); };
+            const toggleDeductionHandler = () => {
+                if (!isDeductionAllowedForScenarioId(STATE.activeScenarioId)) return;
+                STATE.applyDeduction11 = !STATE.applyDeduction11;
+                updateUI();
+            };
             els.btnToggleDeduction.addEventListener('click', toggleDeductionHandler);
             els.toggleDeductionContainer.addEventListener('click', (e) => {
                 if(e.target !== els.btnToggleDeduction && !els.btnToggleDeduction.contains(e.target)) toggleDeductionHandler();
